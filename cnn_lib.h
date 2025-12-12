@@ -109,6 +109,9 @@ public:
     int get_output_width(){
         return output_width;
     }
+    int get_channel_num(){
+        return input_channel;
+    }
 
     const std::vector<float>& get_output() const override {
         return output;

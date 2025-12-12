@@ -51,10 +51,10 @@ bool matrix_multiply(std::vector<float> matrix_a, std::vector<float> matrix_b, i
     result->clear();
     result->resize(result_height * result_width);
 
-    for (int i = 0; i < result_height; ++i) { 
-        for (int j = 0; j < result_width; ++j) {  
+    for(int i = 0; i < result_height; ++i){ 
+        for(int j = 0; j < result_width; ++j){  
             float sum = 0.0f;
-            for (int k = 0; k < common_dim; ++k) {
+            for(int k = 0; k < common_dim; ++k){
                 float a_val = matrix_a[i * a_width + k];
                 float b_val = matrix_b[k * b_width + j];
                 
@@ -138,7 +138,7 @@ DenseLayer::DenseLayer(int num_node_curr, int num_node_prev_in)
     std::uniform_real_distribution<float> dist(-limit, limit);
     unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
     std::default_random_engine generator(seed);
-    for (int i = 0; i < weight_matrix.size(); ++i) {
+    for(int i = 0; i < weight_matrix.size(); ++i){
         weight_matrix[i] = dist(generator); // Now this will be a unique random number
     }
 }
@@ -155,7 +155,7 @@ bool DenseLayer::forward_propagation(const std::vector<float>& input){
     }
 
     output.resize(num_node);
-    for(int i = 0; i < num_node; i++) {
+    for(int i = 0; i < num_node; i++){
         output[i] = apply_activation_function(weighted_sum[i]); //apply activation function
     }
 
@@ -236,8 +236,8 @@ ConvLayer::ConvLayer(int in_h_, int in_w_, int in_ch_,
     std::uniform_real_distribution<float> dist(-limit, limit);
     unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
     std::default_random_engine generator(seed);
-    for (int i = 0; i < filters.size(); ++i) { 
-        filters[i] = dist(generator); // Use the filters vector
+    for(int i = 0; i < filters.size(); ++i){ 
+        filters[i] = dist(generator); //use the filters weight vector
     }
 }
 
@@ -259,7 +259,7 @@ bool ConvLayer::set_filter(std::vector<float> input_filter, int input_filter_hei
     }
 
     int start_index = filter_index * expected_block_size;
-    for (size_t i = 0; i < input_filter.size(); ++i) {
+    for(int i = 0; i < input_filter.size(); ++i){
         filters[start_index + i] = input_filter[i];
     }
 
@@ -302,7 +302,7 @@ bool ConvLayer::forward_propagation(const std::vector<float>& input){
         std::cerr << "Error in ConvLayer::forward_propagation: Input size mismatch." << std::endl;
         return false; 
     }
-    input_cache = input;
+    input_cache = input; //record last input for back propagation
     for(int oc = 0; oc < output_channel; oc++){ //for every output of each kernel filter
         for(int oy = 0; oy < output_height; oy++){
             for(int ox = 0; ox < output_width; ox++){ //compute every pixel of the output picture array
@@ -371,12 +371,11 @@ std::vector<float> ConvLayer::backward_propagation(const std::vector<float>& dA,
 
     //calculate dA_prev
     std::vector<float> dA_prev(input_channel * input_height * input_width, 0.0f);
-
-    for(int oc = 0; oc < output_channel; oc++){
+    for(int oc = 0; oc < output_channel; oc++){ //for every output of each kernel filter
         for(int oy = 0; oy < output_height; oy++){
-            for(int ox = 0; ox < output_width; ox++){
+            for(int ox = 0; ox < output_width; ox++){ //loop through every pixel of the output picture array
 
-                int output_idx = (oc * output_height + oy) * output_width + ox;
+                int output_idx = (oc * output_height + oy) * output_width + ox;//compute the current output index
 
                 for(int ic = 0; ic < input_channel; ic++){
                     for(int ky = 0; ky < filter_height; ky++){
@@ -400,15 +399,15 @@ std::vector<float> ConvLayer::backward_propagation(const std::vector<float>& dA,
         }
     }
 
+    //vectors to accumulate gradient (because every output use the same bias and weight everywhere, we accumulate the gradient to so what general direction we should adjust the filters and bias values)
     std::vector<float> dFilters(filters.size(), 0.0f);
     std::vector<float> dBias(output_channel, 0.0f);
-
     //update weight and bias
     for(int oc = 0; oc < output_channel; oc++){
         for(int oy = 0; oy < output_height; oy++){
             for(int ox = 0; ox < output_width; ox++){
                 
-                //Accumulate bias gradient: dl/db = sum(dl/dz * dz/db) = sum(dz) * 1
+                //accumulate bias gradient: dl/db = sum(dl/dz * dz/db) = sum(dz) * 1
                 float d_val = dZ[(oc * output_height + oy) * output_width + ox];
                 dBias[oc] += d_val; 
 
@@ -416,15 +415,15 @@ std::vector<float> ConvLayer::backward_propagation(const std::vector<float>& dA,
                     for(int ky = 0; ky < filter_height; ky++){
                         for(int kx = 0; kx < filter_width; kx++){
 
-                            // Reconstruct indices
+                            //reconstruct indices
                             int iy = oy + ky;
                             int ix = ox + kx;
                             float input_pixel = input_cache[(ic * input_height + iy) * input_width + ix];
                             
                             int w_idx = (((oc * input_channel + ic) * filter_height + ky) * filter_width) + kx;
 
-                            // Calculate dW (Gradient w.r.t filter weight)
-                            // dL/dW = dL/dZ * dZ/dW = dZ * Input
+                            //calculate dW (Gradient w.r.t filter weight)
+                            //dL/dW = dL/dZ * dZ/dW = dZ * Input
                             dFilters[w_idx] += d_val * input_pixel;
 
                         }
@@ -435,10 +434,10 @@ std::vector<float> ConvLayer::backward_propagation(const std::vector<float>& dA,
     }
 
     // 2. Apply Updates
-    for(size_t i = 0; i < filters.size(); i++) {
+    for(int i = 0; i < filters.size(); i++){
         filters[i] -= learning_rate * dFilters[i];
     }
-    for(size_t i = 0; i < bias.size(); i++) {
+    for(int i = 0; i < bias.size(); i++){
         bias[i] -= learning_rate * dBias[i];
     }
 
@@ -462,17 +461,17 @@ PoolLayer::PoolLayer(int in_h_, int in_w_, int in_ch_,
 
 bool PoolLayer::forward_propagation(const std::vector<float>& input){
     max_indices_cache.resize(output_height * output_width * input_channel);
-    for (int c = 0; c < input_channel; c++) {
-        for (int oy = 0; oy < output_height; oy++) {
-            for (int ox = 0; ox < output_width; ox++) {
+    for(int c = 0; c < input_channel; c++){ //for every channel
+        for(int oy = 0; oy < output_height; oy++){
+            for(int ox = 0; ox < output_width; ox++){ //loop through each output pixel
 
                 float max_val = -1e9;
                 int max_input_index = -1;
 
-                for (int ky = 0; ky < pool_height; ky++) {
-                    for (int kx = 0; kx < pool_width; kx++) {
+                for(int ky = 0; ky < pool_height; ky++){//loop through each pool pixel region
+                    for(int kx = 0; kx < pool_width; kx++){
 
-                        int iy = oy * pool_height + ky;
+                        int iy = oy * pool_height + ky; //compute corresponding input pixel index region
                         int ix = ox * pool_width + kx;
 
                         float v = input[(c * input_height + iy) * input_width + ix];
@@ -493,14 +492,11 @@ bool PoolLayer::forward_propagation(const std::vector<float>& input){
 
 std::vector<float> PoolLayer::backward_propagation(const std::vector<float>& dA, float learning_rate){
     std::vector<float> dA_prev(input_channel * input_height * input_width, 0.0f); 
-    int output_size = output_height * output_width * input_channel;
-
-    for(int i = 0; i < output_size; ++i){
+    for(int i = 0; i < output.size(); i++){
         float incoming_gradient = dA[i];
         int input_index_to_route = max_indices_cache[i];
         dA_prev[input_index_to_route] += incoming_gradient;
     }
-    
     // Return the gradient for the previous layer
     return dA_prev;
 }
@@ -509,60 +505,58 @@ std::vector<float> PoolLayer::backward_propagation(const std::vector<float>& dA,
 //==================== Model Class =======================
 //========================================================
 
-std::vector<float> Model::softmax(const std::vector<float>& logits) {
-    std::vector<float> result(logits.size());
-    float max_val = -1e9;
-    
-    // Find max to prevent overflow during exp()
-    for (float v : logits) if (v > max_val) max_val = v;
-
-    float sum = 0.0f;
-    for (size_t i = 0; i < logits.size(); i++) {
-        result[i] = std::exp(logits[i] - max_val);
-        sum += result[i];
-    }
-    for (size_t i = 0; i < result.size(); i++) {
-        result[i] /= sum;
-    }
-    return result;
-}
-
-int Model::argmax(const std::vector<float>& vec) {
+int Model::argmax(const std::vector<float>& input){ //loop through the input vector to find the index of the largest value
     int max_idx = 0;
-    float max_val = vec[0];
-    for (size_t i = 1; i < vec.size(); i++) {
-        if (vec[i] > max_val) {
-            max_val = vec[i];
+    float max_val = input[0];
+    for(int i = 1; i < input.size(); i++){
+        if(input[i] > max_val){
+            max_val = input[i];
             max_idx = i;
         }
     }
     return max_idx;
 }
 
+std::vector<float> Model::softmax(const std::vector<float>& input){ //compute softmax for every values. Softmax of x = e^x / sum(e^every other element)
+    std::vector<float> result(input.size());
+    float max_val = this->argmax(input); //find max to prevent overflow during exp()
+    
+    //find max to prevent overflow during exp()
+    // for (float v : logits) if (v > max_val) max_val = v;
+
+    float sum = 0.0f; //accumulate sum of e^n for the whole vector
+    for(int i = 0; i < input.size(); i++){
+        result[i] = std::exp(input[i] - max_val);
+        sum += result[i];
+    }
+    for(int i = 0; i < result.size(); i++){ //compute softmax for each element
+        result[i] /= sum;
+    }
+    return result;
+}
+
 Model::Model() {}
 
 Model::~Model() {
-    for (Layer* layer : layers) {
+    for(Layer* layer : layers){ //free each layer pointer
         delete layer;
     }
     layers.clear();
 }
 
-void Model::add(Layer* layer) {
+void Model::add(Layer* layer){
     layers.push_back(layer);
 }
 
 std::vector<float> Model::predict(const std::vector<float>& input) {
     std::vector<float> current_data = input;
-
-    for (Layer* layer : layers) {
-        if (!layer->forward_propagation(current_data)) {
-            std::cerr << "Error: Forward propagation failed." << std::endl;
-            return {};
+    for(int i = 0; i < layers.size(); i++){
+        if(!layers[i]->forward_propagation(current_data)){
+            std::cerr << "Error: Forward propagation failed at layer " << i << std::endl;
+            return std::vector<float>{}; 
         }
-        current_data = layer->get_output();
+        current_data = layers[i]->get_output();
     }
-
     return softmax(current_data);
 }
 
@@ -570,51 +564,40 @@ void Model::fit(const std::vector<std::vector<float>>& x_train,
                 const std::vector<std::vector<float>>& y_train, 
                 int epochs, float learning_rate) {
     
-    if (x_train.size() != y_train.size()) {
+    if(x_train.size() != y_train.size()){
         std::cerr << "Error: X and Y training data size mismatch." << std::endl;
         return;
     }
 
-    std::cout << "Starting training on " << x_train.size() << " samples..." << std::endl;
-    const size_t LOG_FREQUENCY = 100;
-    
-    for (int epoch = 0; epoch < epochs; epoch++) {
+    std::cout << "Starting training on " << x_train.size() << " samples" << std::endl;
+    for(int epoch = 0; epoch < epochs; epoch++){
         float total_loss = 0.0f;
         int correct = 0;
 
-        for (size_t i = 0; i < x_train.size(); i++) {
-            // --- 1. Forward Pass ---
-            std::vector<float> current_data = x_train[i];
-            for (Layer* layer : layers) {
-                layer->forward_propagation(current_data);
-                current_data = layer->get_output();
-            }
+        for(int i = 0; i < x_train.size(); i++){
+            //Forward pass
+            std::vector<float> output_probs = predict(x_train[i]);
 
-            // Apply Softmax
-            std::vector<float> probs = softmax(current_data);
+            //Calculate loss and accuracy
             const std::vector<float>& target = y_train[i];
-
-            // --- 2. Calculate Loss & Accuracy ---
             float sample_loss = 0.0f;
-            for (size_t j = 0; j < probs.size(); j++) {
-                if (target[j] > 0.5f) { 
-                    sample_loss -= std::log(probs[j] + 1e-9f);
+            for(int j = 0; j < output_probs.size(); j++){
+                if(target[j] > 0.5f){ //because target is 1 hot encoded, this is used to find the place where the output is correct
+                    sample_loss -= std::log(output_probs[j] + 1e-9f); //accumulate loss on this sample, loss = -log(p_correct). Plus a very small number to prevent float becoming 0 and crash inside log function
                 }
             }
             total_loss += sample_loss;
-
-            if (argmax(probs) == argmax(target)) {
+            if(argmax(output_probs) == argmax(target)){ //if largest output index match the correct index in the 1 hot target vector, that's a correct instance
                 correct++;
             }
 
-            // --- 3. Backward Pass ---
-            std::vector<float> d_error(probs.size());
-            for (size_t j = 0; j < probs.size(); j++) {
-                d_error[j] = probs[j] - target[j];
+            //Backward Pass
+            std::vector<float> d_error(output_probs.size());
+            for(int j = 0; j < output_probs.size(); j++){ //calculate how far is the outputed probability from the target probability
+                d_error[j] = output_probs[j] - target[j];
             }
-
             std::vector<float> current_gradient = d_error;
-            for (int k = layers.size() - 1; k >= 0; k--) {
+            for(int k = layers.size() - 1; k >= 0; k--){ //perform back propagation loop
                 current_gradient = layers[k]->backward_propagation(current_gradient, learning_rate);
                 if (current_gradient.empty()) {
                     std::cerr << "Backprop failed at layer " << k << std::endl;
@@ -622,39 +605,30 @@ void Model::fit(const std::vector<std::vector<float>>& x_train,
                 }
             }
             
-            // =======================================================
-            // === NEW: INTERMEDIATE LOGGING BLOCK ===================
-            // =======================================================
-            if ((i + 1) % LOG_FREQUENCY == 0) {
-                // Calculate average metrics over the last LOG_FREQUENCY samples
+            //output log every 100 samples so we know training process is still working
+            if ((i + 1) % 100 == 0) {
                 float batch_accuracy = (float)correct / (i + 1);
                 float batch_loss = total_loss / (i + 1);
                 
-                // Use carriage return '\r' to update the line in the terminal
-                std::cout << "\rEpoch " << epoch + 1 << " | Sample " << (i + 1) 
-                          << " / " << x_train.size()
-                          << " | Avg Loss: " << std::fixed << std::setprecision(4) << batch_loss 
-                          << " | Avg Acc: " << batch_accuracy * 100.0f << "%"
-                          << std::flush;
+                //use carriage return '\r' to update the line in the terminal
+                std::cout << "\rEpoch " << epoch + 1 << " | Sample " << (i + 1) << " / " << x_train.size() << " | Avg Loss: " << std::fixed << std::setprecision(4) << batch_loss << " | Avg Acc: " << batch_accuracy * 100.0f << "%" << std::flush;
             }
-            // =======================================================
-        } // End of training set loop
-
-        // Print Epoch Stats
+        }
+        //print epoch stats
         float acc = (float)correct / x_train.size();
         float avg_loss = total_loss / x_train.size();
-        std::cout << std::endl << "Epoch " << epoch + 1 << "/" << epochs 
-                  << " | Loss: " << avg_loss 
-                  << " | Accuracy: " << acc * 100.0f << "%" << std::endl;
+        std::cout << std::endl << "Epoch " << epoch + 1 << "/" << epochs << " | Loss: " << avg_loss << " | Accuracy: " << acc * 100.0f << "%" << std::endl;
     }
 }
 
 float Model::evaluate(const std::vector<std::vector<float>>& x_test, 
-                      const std::vector<std::vector<float>>& y_test) {
+                      const std::vector<std::vector<float>>& y_test){
     int correct = 0;
-    for (size_t i = 0; i < x_test.size(); i++) {
-        std::vector<float> pred = predict(x_test[i]);
-        if (argmax(pred) == argmax(y_test[i])) correct++;
+    for(int i = 0; i < x_test.size(); i++){
+        std::vector<float> output_probs = predict(x_test[i]);
+        if(argmax(output_probs) == argmax(y_test[i])){
+            correct++;
+        }
     }
     return (float)correct / x_test.size();
 }
