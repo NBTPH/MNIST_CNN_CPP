@@ -90,7 +90,7 @@ bool matrix_transpose(const std::vector<float>& matrix_in, int height, int width
 }
 
 //=========================================================
-//================== Base Layer Function ==================
+//================== Base Layer Class =====================
 //=========================================================
 
 void Layer::set_activation_type(ActivationType input_type){
@@ -133,13 +133,13 @@ DenseLayer::DenseLayer(int num_node_curr, int num_node_prev_in)
     output.resize(num_node);
     weighted_sum.resize(num_node);
 
-    // Xavier initialization
+    //Xavier initialization
     float limit = std::sqrt(6.0f / (num_node_prev + num_node));
     std::uniform_real_distribution<float> dist(-limit, limit);
     unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
     std::default_random_engine generator(seed);
     for(int i = 0; i < weight_matrix.size(); ++i){
-        weight_matrix[i] = dist(generator); // Now this will be a unique random number
+        weight_matrix[i] = dist(generator);
     }
 }
 
@@ -231,70 +231,14 @@ ConvLayer::ConvLayer(int in_h_, int in_w_, int in_ch_,
     weighted_sum.resize(output_height * output_width * output_channel, 0.0f);
     output.resize(output_height * output_width * output_channel, 0.0f);
 
-    // Xavier
+    //Xavier
     float limit = std::sqrt(6.0f / (filter_height * filter_width * input_channel + output_channel));
     std::uniform_real_distribution<float> dist(-limit, limit);
     unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
     std::default_random_engine generator(seed);
     for(int i = 0; i < filters.size(); ++i){ 
-        filters[i] = dist(generator); //use the filters weight vector
+        filters[i] = dist(generator); //use the filters weight vector and initialize it with noise
     }
-}
-
-bool ConvLayer::set_filter(std::vector<float> input_filter, int input_filter_height, int input_filter_width, int channel_num, int filter_index){
-    if(input_filter_height != filter_height || input_filter_width != filter_width || channel_num != input_channel){
-        std::cerr << "Error: Filter dimensions (H, W, In_C) mismatch layer's dimensions." << std::endl;
-        return false;
-    }
-    else if(filter_index < 0 || filter_index >= output_channel){
-        std::cerr << "Error: Filter index (filter_index=" << filter_index << ") is out of bounds." << std::endl;
-        return false;
-    }
-    
-    int expected_block_size = filter_height * filter_width * input_channel;
-    if (input_filter.size() != expected_block_size) {
-        std::cerr << "Error: Input filter vector size mismatch. Expected: " << expected_block_size 
-                  << ", Got: " << input_filter.size() << std::endl;
-        return false;
-    }
-
-    int start_index = filter_index * expected_block_size;
-    for(int i = 0; i < input_filter.size(); ++i){
-        filters[start_index + i] = input_filter[i];
-    }
-
-    return true;
-}
-bool ConvLayer::set_all_filter(std::vector<float> input_all_filter){
-    int expected_size = filter_height * filter_width * input_channel * output_channel;
-    if (input_all_filter.size() != expected_size) {
-        std::cerr << "Error: Input vector size mismatch." << std::endl;
-        return false;
-    }
-    filters = input_all_filter; 
-    return true;
-}
-bool ConvLayer::add_filter(std::vector<float> input_filter, int input_filter_height, int input_filter_width, int channel_num){
-    if (input_filter_height != filter_height || input_filter_width != filter_width || channel_num != input_channel) {
-        std::cerr << "Error: Filter dimensions (H, W, In_C) mismatch layer's dimensions. Cannot add filter." << std::endl;
-        return false;
-    }
-
-    int expected_block_size = filter_height * filter_width * input_channel;
-    if (input_filter.size() != expected_block_size) {
-        std::cerr << "Error: Input filter vector size mismatch. Expected: " << expected_block_size 
-                  << ", Got: " << input_filter.size() << std::endl;
-        return false;
-    }
-
-    output_channel++;
-    filters.insert(filters.end(), input_filter.begin(), input_filter.end());
-    bias.resize(output_channel, 0.0f);
-    int new_output_size = output_height * output_width * output_channel;
-    weighted_sum.resize(new_output_size, 0.0f);
-    output.resize(new_output_size, 0.0f);
-
-    return true;
 }
 
 bool ConvLayer::forward_propagation(const std::vector<float>& input){
@@ -497,7 +441,7 @@ std::vector<float> PoolLayer::backward_propagation(const std::vector<float>& dA,
         int input_index_to_route = max_indices_cache[i];
         dA_prev[input_index_to_route] += incoming_gradient;
     }
-    // Return the gradient for the previous layer
+    //return the gradient for the previous layer
     return dA_prev;
 }
 
@@ -520,9 +464,6 @@ int Model::argmax(const std::vector<float>& input){ //loop through the input vec
 std::vector<float> Model::softmax(const std::vector<float>& input){ //compute softmax for every values. Softmax of x = e^x / sum(e^every other element)
     std::vector<float> result(input.size());
     float max_val = this->argmax(input); //find max to prevent overflow during exp()
-    
-    //find max to prevent overflow during exp()
-    // for (float v : logits) if (v > max_val) max_val = v;
 
     float sum = 0.0f; //accumulate sum of e^n for the whole vector
     for(int i = 0; i < input.size(); i++){

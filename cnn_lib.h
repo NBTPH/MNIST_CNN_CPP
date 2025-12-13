@@ -64,10 +64,7 @@ private:
 public:
     ConvLayer(int in_h, int in_w, int in_ch,
               int f_h, int f_w, int out_ch);
-
-    bool set_filter(std::vector<float> input_filter, int input_filter_height, int input_filter_width, int channel_num, int filter_index);
-    bool set_all_filter(std::vector<float> input_all_filter);
-    bool add_filter(std::vector<float> input_filter, int input_filter_height, int input_filter_width, int channel_num);
+              
     bool forward_propagation(const std::vector<float>& input) override;
     std::vector<float> backward_propagation(const std::vector<float>& dA, float lr) override;
 

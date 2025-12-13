@@ -25,8 +25,8 @@ void read_dataset(const std::string& path, std::vector<std::vector<float>>& x_ou
         std::stringstream ss(line);
         std::string cell;
         
-        //read lable (first column)
-        if(!std::getline(ss, cell, ',')) continue; // Read the label cell
+        //read label (first column)
+        if(!std::getline(ss, cell, ',')) continue; //read the label cell
         try{
             int label = std::stoi(cell);
             
@@ -69,7 +69,7 @@ void read_dataset(const std::string& path, std::vector<std::vector<float>>& x_ou
         } else {
             //remove the label if we couldn't get the full image data
             if (!y_out.empty()) y_out.pop_back(); 
-            std::cerr << "Warning: Line skipped due to incomplete pixel data. Expected 784, got " << pixel_count << "." << std::endl;
+            std::cerr << "Line skipped due to incomplete pixel data. Expected 784, got " << pixel_count << "." << std::endl;
         }
     }
 
@@ -109,7 +109,7 @@ int main(){
     d2->set_activation_type(ActivationType::NONE); 
     model.add(d2);
 
-    //train model
+    //Train model
 
     const int EPOCHS = 5;
     const float LEARNING_RATE = 0.01f;
@@ -117,7 +117,7 @@ int main(){
     std::cout << "\nTraining Model...\n";
     model.fit(X_train, Y_train, EPOCHS, LEARNING_RATE);
     
-    //test model
+    //Test model
 
     std::cout << "\nEvaluating Model...\n";
     float accuracy = model.evaluate(X_test, Y_test);
