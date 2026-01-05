@@ -131,7 +131,7 @@ DenseLayer::DenseLayer(int num_node_curr, int num_node_prev_in)
     weight_matrix.resize(num_node * num_node_prev);
     bias.resize(num_node, 0.0f);
     output.resize(num_node);
-    weighted_sum.resize(num_node);
+    weighted_sum.resize(num_node); 
 
     //Xavier initialization
     float limit = std::sqrt(6.0f / (num_node_prev + num_node));
@@ -377,7 +377,7 @@ std::vector<float> ConvLayer::backward_propagation(const std::vector<float>& dA,
         }
     }
 
-    // 2. Apply Updates
+    //updates
     for(int i = 0; i < filters.size(); i++){
         filters[i] -= learning_rate * dFilters[i];
     }
@@ -478,6 +478,37 @@ std::vector<float> Model::softmax(const std::vector<float>& input){ //compute so
 
 Model::Model() {}
 
+Model::Model(std::ifstream &model) {
+    if(!model.is_open()){
+        return;
+    }
+    std::string line;
+    while(std::getline(model, line)){
+        if(line.empty()){
+            continue;
+        }
+        //skip to ": "
+        size_t colon_pos = line.find(": ");
+        std::string content = (colon_pos != std::string::npos) ? line.substr(colon_pos + 2) : line;
+
+        std::stringstream ss(content);
+        std::string type;
+        ss >> type; //get layer type
+
+        if(type == "[Dense]"){
+            read_denselayer(ss);
+        } 
+        else if(type == "[Convolution]"){
+            read_convlayer(ss);
+        } 
+        else if(type == "[Pooling]"){
+            read_poollayer(ss);
+        }
+    }
+    std::cout << "Model loaded successfully" << std::endl;
+    model.close();
+}
+
 Model::~Model() {
     for(Layer* layer : layers){ //free each layer pointer
         delete layer;
@@ -501,9 +532,7 @@ std::vector<float> Model::predict(const std::vector<float>& input) {
     return softmax(current_data);
 }
 
-void Model::fit(const std::vector<std::vector<float>>& x_train, 
-                const std::vector<std::vector<float>>& y_train, 
-                int epochs, float learning_rate) {
+void Model::fit(const std::vector<std::vector<float>>& x_train,  const std::vector<std::vector<float>>& y_train, int epochs, float learning_rate) {
     
     if(x_train.size() != y_train.size()){
         std::cerr << "Error: X and Y training data size mismatch." << std::endl;
@@ -540,14 +569,14 @@ void Model::fit(const std::vector<std::vector<float>>& x_train,
             std::vector<float> current_gradient = d_error;
             for(int k = layers.size() - 1; k >= 0; k--){ //perform back propagation loop
                 current_gradient = layers[k]->backward_propagation(current_gradient, learning_rate);
-                if (current_gradient.empty()) {
+                if(current_gradient.empty()){
                     std::cerr << "Backprop failed at layer " << k << std::endl;
                     return;
                 }
             }
             
             //output log every 100 samples so we know training process is still working
-            if ((i + 1) % 100 == 0) {
+            if((i + 1) % 100 == 0){
                 float batch_accuracy = (float)correct / (i + 1);
                 float batch_loss = total_loss / (i + 1);
                 
@@ -562,14 +591,235 @@ void Model::fit(const std::vector<std::vector<float>>& x_train,
     }
 }
 
-float Model::evaluate(const std::vector<std::vector<float>>& x_test, 
-                      const std::vector<std::vector<float>>& y_test){
+float Model::evaluate(const std::vector<std::vector<float>>& x_test, const std::vector<std::vector<float>>& y_test){
     int correct = 0;
     for(int i = 0; i < x_test.size(); i++){
         std::vector<float> output_probs = predict(x_test[i]);
         if(argmax(output_probs) == argmax(y_test[i])){
             correct++;
         }
+        //output every 100 samples
+        if((i + 1) % 100 == 0){
+            float batch_accuracy = (float)correct / (i + 1);
+            //use carriage return '\r' to update the line in the terminal
+            std::cout << "\rSample " << (i + 1) << " / " << x_test.size() << std::fixed << std::setprecision(4) << " Avg Acc: " << batch_accuracy * 100.0f << "%" << std::flush;
+        }
     }
+    std::cout << std::endl;
     return (float)correct / x_test.size();
+}
+
+//////////////////// Model Save & Load Functions ////////////////////
+
+float read_hex(std::string hex_str) {
+    //remove ] bracket if string contains it
+    if(!hex_str.empty() && hex_str.back() == ']'){
+        hex_str.pop_back();
+    }
+    uint32_t bits = std::stoul(hex_str, nullptr, 16); //extract the hex string to 32 bits
+    float value;
+    std::memcpy(&value, &bits, sizeof(bits)); //copy the bits into a float type
+    return value;
+}
+
+void Model::read_denselayer(std::stringstream &ss){
+    //Dense layer string format is: [Dense] [num_node num_node_previous] [flattened weight matrix vector] [bias] [act_type]
+    //Vector format is: [40c90fdb 45c90f35 ..]
+    int n_curr, n_prev;
+    char bracket;
+    std::string temp;
+
+    //[num_node num_node_prev]
+    ss >> bracket >> n_curr >> n_prev >> bracket; 
+
+    DenseLayer* layer = new DenseLayer(n_curr, n_prev);
+
+    //[weight matrix]
+    ss >> bracket; //skip [
+    for (int i = 0; i < layer->weight_matrix.size(); i++) {
+        ss >> temp;
+        layer->weight_matrix[i] = read_hex(temp);
+    }
+
+    //[bias]
+    ss >> bracket;
+    for (int i = 0; i < layer->bias.size(); i++) {
+        ss >> temp;
+        layer->bias[i] = read_hex(temp);
+    }
+
+    //[act_type]
+    ss >> bracket >> temp; //read "act_type]"
+    if(temp.find("RELU") != std::string::npos){
+        layer->set_activation_type(RELU);
+    }
+    else if(temp.find("SIGMOID") != std::string::npos){
+        layer->set_activation_type(SIGMOID);
+    }
+    else{
+        layer->set_activation_type(NONE);
+    }
+
+    this->add(layer);
+}
+
+void Model::read_convlayer(std::stringstream &ss){
+    //Convolution layer string format is: [Convolution] [input_height input_width input_channel] [filter_height filter_width] [output_channel] [flattened filters vector] [bias] [act_type]
+    //Vector format is: [40c90fdb 45c90f35 ..]
+
+    int input_height, input_width, input_channel, filter_height, filter_width, output_channel;
+    char bracket;
+    std::string temp;
+
+    //[input_height input_width input_channel] [filter_height filter_width] [output_channel]
+    ss >> bracket >> input_height >> input_width >> input_channel >> bracket;
+    ss >> bracket >> filter_height >> filter_width >> bracket;
+    ss >> bracket >> output_channel >> bracket;
+
+    ConvLayer* layer = new ConvLayer(input_height, input_width, input_channel, filter_height, filter_width, output_channel);
+
+   //[flattened filter matrix]
+    ss >> bracket; //skip '['
+    for (int i = 0; i < layer->filters.size(); ++i) {
+        ss >> temp;
+        layer->filters[i] = read_hex(temp);
+    }
+
+    //[bias]
+    ss >> bracket;
+    for (int i = 0; i < output_channel; ++i) {
+        ss >> temp;
+        layer->bias[i] = read_hex(temp);
+    }
+
+    //[act type]
+    ss >> bracket >> temp;
+    if(temp.find("RELU") != std::string::npos){
+        layer->set_activation_type(RELU);
+    }
+    else if(temp.find("SIGMOID") != std::string::npos){
+        layer->set_activation_type(SIGMOID);
+    }
+    else{
+        layer->set_activation_type(NONE);
+    }
+
+    this->add(layer);
+}
+
+void Model::read_poollayer(std::stringstream &ss){
+    //Pool layer string format is: [Pooling] [input_height input_width input_channel] [pool_height pool_width]
+    int input_height, input_width, input_channel, pool_height, pool_width;
+    char bracket;
+
+    //[input_height input_width input_channel] [pool_height pool_width]
+    ss >> bracket >> input_height >> input_width >> input_channel >> bracket;
+    ss >> bracket >> pool_height >> pool_width >> bracket;
+
+    PoolLayer* layer = new PoolLayer(input_height, input_width, input_channel, pool_height, pool_width);
+
+    this->add(layer);
+}
+
+void write_hex(std::ofstream &out, float value){
+    uint32_t bits;
+    std::memcpy(&bits, &value, sizeof(bits));
+    out << std::hex << std::setw(8) << std::setfill('0') << bits;
+}
+
+void Model::write_denselayer(std::ofstream &out, DenseLayer* d){
+    //Output format is: [Dense] [num_node num_node_previous] [flattened weight matrix vector] [bias] [act_type]
+    //Vector output format is: [40c90fdb 45c90f35 ..]
+    out << "[Dense] [" << std::dec << d->num_node << " " << d->num_node_prev << "] [";
+    for(int i = 0; i < d->weight_matrix.size(); i++){
+        write_hex(out, d->weight_matrix[i]);
+        if(i + 1 !=  d->weight_matrix.size()){
+            out << " ";
+        }
+    }
+
+    out << "] [";
+    for(int i = 0; i < d->bias.size(); i++){
+        write_hex(out, d->bias[i]);
+        if(i + 1 !=  d->bias.size()){
+            out << " ";
+        }
+    }
+
+    out << "] [";
+    switch(d->act_type){
+        case RELU:
+            out << "RELU";
+            break;
+        case SIGMOID:
+            out << "SIGMOID";
+            break;
+        default:
+            out << "NONE";
+            break;
+    }
+
+    out << "]" << std::endl;
+}
+
+void Model::write_convlayer(std::ofstream &out, ConvLayer* c){
+    //Output format is: [Convolution] [input_height input_width input_channel] [filter_height filter_width] [output_channel] [flattened filters vector] [bias] [act_type]
+    //Vector output format is: [40c90fdb 45c90f35 ..]
+    out << "[Convolution] [" << std::dec << c->input_height << " " << c->input_width << " " << c->input_channel << "] [" << c->filter_height << " " << c->filter_width << "] [" << c->output_channel << "] [";
+    for(int i = 0; i < c->filters.size(); i++){
+        write_hex(out, c->filters[i]);
+        if(i + 1 !=  c->filters.size()){
+            out << " ";
+        }
+    }
+
+    out << "] [";
+    for(int i = 0; i < c->bias.size(); i++){
+        write_hex(out, c->bias[i]);
+        if(i + 1 !=  c->bias.size()){
+            out << " ";
+        }
+    }
+
+    out << "] [";
+    switch(c->act_type){
+        case RELU:
+            out << "RELU";
+            break;
+        case SIGMOID:
+            out << "SIGMOID";
+            break;
+        default:
+            break;
+    }
+
+    out << "]" << std::endl;
+}
+
+void Model::write_poollayer(std::ofstream &out, PoolLayer* p){
+    //Output format is: [Pooling] [input_height input_width input_channel] [pool_height pool_width]
+    out << "[Pooling] [" << std::dec << p->input_height << " " << p->input_width << " " << p->input_channel << "] [" << p->pool_height << " " << p->pool_width << "]" << std::endl;
+}
+
+void Model::output_model(){
+    std::ofstream outfile("model_output.txt");
+    if(outfile.is_open()){
+        for(int i = 0; i < layers.size(); i++){
+            outfile << "Layer " << i + 1 << ": ";
+            if(DenseLayer *d = dynamic_cast<DenseLayer*>(layers[i])){
+                write_denselayer(outfile, d);
+            }
+            else if(ConvLayer *c = dynamic_cast<ConvLayer*>(layers[i])){
+                write_convlayer(outfile, c);
+            }
+            else if(PoolLayer *p = dynamic_cast<PoolLayer*>(layers[i])){
+                write_poollayer(outfile, p);
+            }
+        }
+        outfile.close();
+        std::cout << "Model saved successfully" << std::endl;
+    } 
+    else{
+        std::cerr << "Error: Could not open or create output file" << std::endl;
+    }
 }

@@ -2,6 +2,9 @@
 #define HEADER_H
 
 #include <iostream>
+#include <fstream>
+#include <sstream>
+#include <cstring>
 #include <string>
 #include <vector>
 #include <random>
@@ -21,8 +24,9 @@ public:
     float apply_activation_function(float input);
     virtual bool forward_propagation(const std::vector<float>& input) = 0;
     virtual std::vector<float> backward_propagation(const std::vector<float>& dA, float lr) = 0;
-
     virtual const std::vector<float>& get_output() const = 0;
+
+    friend class Model;
 };
 
 class DenseLayer : public Layer {
@@ -42,9 +46,15 @@ public:
     bool forward_propagation(const std::vector<float>& input) override;
     std::vector<float> backward_propagation(const std::vector<float>& dA, float lr) override;
 
+    // int get_num_node(){ return num_node; }
+    // int get_num_node_previous(){ return num_node_prev; }
+    // std::vector<float> get_weight_matrix(){ return weight_matrix; }
+    // std::vector<float> get_bias_vector(){ return bias; }
     const std::vector<float>& get_output() const override {
         return output;
     }
+
+    friend class Model;
 };
 
 //================== Convolution Layer Class ==================
@@ -56,10 +66,10 @@ private:
     int filter_height, filter_width;
 
     std::vector<float> input_cache;
-    std::vector<float> filters;    // flattened 4D tensor
+    std::vector<float> filters;
     std::vector<float> bias;
     std::vector<float> weighted_sum;
-    std::vector<float> output;     // flattened 3D tensor
+    std::vector<float> output;
 
 public:
     ConvLayer(int in_h, int in_w, int in_ch,
@@ -81,6 +91,8 @@ public:
     const std::vector<float>& get_output() const override {
         return output;
     }
+
+    friend class Model;
 };
 
 //================== Pooling Layer Class ==================
@@ -113,6 +125,8 @@ public:
     const std::vector<float>& get_output() const override {
         return output;
     }
+
+    friend class Model;
 };
 
 //================== Model Class ==================
@@ -124,12 +138,24 @@ private:
     int argmax(const std::vector<float>& vec);
 public:
     Model();
+    Model(std::ifstream &model);
     ~Model();
 
     void add(Layer* layer);
     std::vector<float> predict(const std::vector<float>& input);
     void fit(const std::vector<std::vector<float>>& x_train, const std::vector<std::vector<float>>& y_train, int epochs, float learning_rate);
     float evaluate(const std::vector<std::vector<float>>& x_test, const std::vector<std::vector<float>>& y_test);
+
+    //////////////////// Model Save & Load Functions ////////////////////
+
+    void read_denselayer(std::stringstream &ss);
+    void read_convlayer(std::stringstream &ss);
+    void read_poollayer(std::stringstream &ss);
+    
+    void write_denselayer(std::ofstream &out, DenseLayer* d);
+    void write_convlayer(std::ofstream &out, ConvLayer* c);
+    void write_poollayer(std::ofstream &out, PoolLayer* p);
+    void output_model();
 };
 
 
